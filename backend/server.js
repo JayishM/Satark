@@ -10,6 +10,518 @@ const port=3000;
 
 
 
+// =========================================
+// DETERMINISTIC RISK SUMMARY
+// =========================================
+
+function generateRiskSummary(
+    finalScore,
+    overallLevel,
+    factors,
+    disasterAlerts,
+    landslideRisk,
+    rawIndicators
+) {
+
+    const mainConcerns = [];
+    const positiveConditions = [];
+    const recommendations = [];
+    const riskFactors = [];
+
+
+    // =========================================
+    // HELPER: ADD RISK FACTOR
+    // =========================================
+
+    function addRiskFactor(
+        name,
+        score,
+        maxScore,
+        reason
+    ) {
+
+        if (score > 0) {
+
+            riskFactors.push({
+
+                factor: name,
+
+                score: score,
+
+                max_score: maxScore,
+
+                reason: reason
+
+            });
+
+        }
+
+    }
+
+
+    // =========================================
+    // ALTITUDE
+    // =========================================
+
+    if (factors.altitude.score >= 10) {
+
+        mainConcerns.push(
+            `High-altitude destination at ${rawIndicators.elevation_m} m`
+        );
+
+        addRiskFactor(
+            "Altitude",
+            factors.altitude.score,
+            20,
+            `Destination is located at ${rawIndicators.elevation_m} m elevation.`
+        );
+
+    }
+
+
+    // =========================================
+    // RAIN
+    // =========================================
+
+    if (factors.rain.score >= 8) {
+
+        mainConcerns.push(
+            "Rainfall conditions may reduce travel safety"
+        );
+
+        addRiskFactor(
+            "Rainfall",
+            factors.rain.score,
+            25,
+            "Forecast rainfall and precipitation probability are contributing to the risk."
+        );
+
+    }
+
+
+    // =========================================
+    // WIND
+    // =========================================
+
+    if (factors.wind.score >= 6) {
+
+        mainConcerns.push(
+            "Elevated wind conditions are possible"
+        );
+
+        addRiskFactor(
+            "Wind",
+            factors.wind.score,
+            15,
+            "Forecast wind speeds or gusts are contributing to travel risk."
+        );
+
+    }
+
+
+    // =========================================
+    // VISIBILITY
+    // =========================================
+
+    if (factors.visibility.score >= 9) {
+
+        mainConcerns.push(
+            "Visibility may fall below safe travel levels during some forecast hours"
+        );
+
+        addRiskFactor(
+            "Visibility",
+            factors.visibility.score,
+            15,
+            "Multiple forecast hours show significantly reduced visibility."
+        );
+
+    }
+    else if (factors.visibility.score >= 5) {
+
+        mainConcerns.push(
+            "Reduced visibility is possible during the forecast period"
+        );
+
+        addRiskFactor(
+            "Visibility",
+            factors.visibility.score,
+            15,
+            "Some forecast periods may have reduced visibility."
+        );
+
+    }
+
+
+    // =========================================
+    // SNOW
+    // =========================================
+
+    if (factors.snow.score >= 6) {
+
+        mainConcerns.push(
+            "Snowfall may affect travel conditions"
+        );
+
+        addRiskFactor(
+            "Snowfall",
+            factors.snow.score,
+            15,
+            "Forecast snowfall may affect routes and travel conditions."
+        );
+
+    }
+
+
+    // =========================================
+    // TEMPERATURE
+    // =========================================
+
+    if (factors.temperature.score >= 3) {
+
+        mainConcerns.push(
+            "Temperature conditions may affect traveller safety"
+        );
+
+        addRiskFactor(
+            "Temperature",
+            factors.temperature.score,
+            10,
+            "Forecast temperatures are contributing to the calculated risk."
+        );
+
+    }
+
+
+    // =========================================
+    // OFFICIAL DISASTER ALERTS
+    // =========================================
+
+    if (factors.disaster_alerts.score > 0) {
+
+        let alertReason =
+            "An active official disaster alert is contributing to the risk.";
+
+        if (disasterAlerts.length > 0) {
+
+            const alertTypes =
+                disasterAlerts
+                    .map(alert => alert.disaster_type)
+                    .filter(Boolean);
+
+            if (alertTypes.length > 0) {
+
+                alertReason =
+                    `Active official alert: ${alertTypes.join(", ")}.`;
+
+            }
+
+        }
+
+        mainConcerns.push(
+            `Official disaster alert${disasterAlerts.length > 1 ? "s" : ""} currently active`
+        );
+
+        addRiskFactor(
+            "Official alerts",
+            factors.disaster_alerts.score,
+            30,
+            alertReason
+        );
+
+    }
+
+
+    // =========================================
+    // LANDSLIDE
+    // =========================================
+
+    if (landslideRisk.score >= 15) {
+
+        mainConcerns.push(
+            "Elevated landslide-trigger conditions detected"
+        );
+
+        addRiskFactor(
+            "Landslide trigger",
+            Math.min(landslideRisk.score, 20),
+            20,
+            "Weather and terrain conditions are contributing to the landslide trigger indicator."
+        );
+
+    }
+
+
+    // =========================================
+    // POSITIVE CONDITIONS
+    // =========================================
+
+    if (factors.rain.score <= 5) {
+
+        positiveConditions.push(
+            "Rainfall risk is currently limited"
+        );
+
+    }
+
+    if (factors.wind.score <= 3) {
+
+        positiveConditions.push(
+            "Wind conditions are relatively calm"
+        );
+
+    }
+
+    if (factors.visibility.score <= 2) {
+
+        positiveConditions.push(
+            "Visibility conditions are currently good"
+        );
+
+    }
+
+    if (factors.snow.score === 0) {
+
+        positiveConditions.push(
+            "No significant snowfall risk detected"
+        );
+
+    }
+
+    if (factors.temperature.score === 0) {
+
+        positiveConditions.push(
+            "No significant temperature-related risk detected"
+        );
+
+    }
+
+    if (factors.disaster_alerts.score === 0) {
+
+        positiveConditions.push(
+            "No active official disaster alerts detected"
+        );
+
+    }
+
+    if (landslideRisk.score < 15) {
+
+        positiveConditions.push(
+            "Landslide trigger indicator is currently low"
+        );
+
+    }
+
+
+    // =========================================
+    // SORT RISK FACTORS
+    // =========================================
+
+    riskFactors.sort(
+        (a, b) => {
+
+            const percentageA =
+                a.score / a.max_score;
+
+            const percentageB =
+                b.score / b.max_score;
+
+            return percentageB - percentageA;
+
+        }
+    );
+
+
+    // =========================================
+    // SEVERITY REASON
+    // =========================================
+
+    let severityReason;
+
+    if (riskFactors.length === 0) {
+
+        severityReason =
+            "No significant risk factors are currently contributing to the calculated risk.";
+
+    }
+    else {
+
+        const topFactors =
+            riskFactors
+                .slice(0, 3)
+                .map(factor => factor.factor);
+
+        if (topFactors.length === 1) {
+
+            severityReason =
+                `The current ${overallLevel.toLowerCase()} risk is primarily driven by ${topFactors[0].toLowerCase()}.`;
+
+        }
+        else if (topFactors.length === 2) {
+
+            severityReason =
+                `The current ${overallLevel.toLowerCase()} risk is mainly driven by ${topFactors[0].toLowerCase()} and ${topFactors[1].toLowerCase()}.`;
+
+        }
+        else {
+
+            severityReason =
+                `The current ${overallLevel.toLowerCase()} risk is mainly driven by ${topFactors[0].toLowerCase()}, ${topFactors[1].toLowerCase()}, and ${topFactors[2].toLowerCase()}.`;
+
+        }
+
+    }
+
+
+    // =========================================
+    // RECOMMENDATIONS
+    // =========================================
+
+    if (finalScore >= 75) {
+
+        recommendations.push(
+            "Avoid non-essential travel until conditions improve"
+        );
+
+        recommendations.push(
+            "Monitor official disaster alerts before travelling"
+        );
+
+    }
+    else if (finalScore >= 55) {
+
+        recommendations.push(
+            "Exercise strong caution while travelling"
+        );
+
+        recommendations.push(
+            "Check official alerts immediately before departure"
+        );
+
+    }
+    else if (finalScore >= 30) {
+
+        recommendations.push(
+            "Travel with caution and monitor conditions regularly"
+        );
+
+        recommendations.push(
+            "Check official alerts before starting the journey"
+        );
+
+    }
+    else {
+
+        recommendations.push(
+            "Current conditions appear relatively favorable for travel"
+        );
+
+    }
+
+
+    // =========================================
+    // SPECIFIC RECOMMENDATIONS
+    // =========================================
+
+    if (factors.altitude.score >= 10) {
+
+        recommendations.push(
+            "Allow additional time to adjust to the high-altitude environment"
+        );
+
+    }
+
+    if (factors.visibility.score >= 5) {
+
+        recommendations.push(
+            "Prefer travel during periods of better visibility"
+        );
+
+    }
+
+    if (factors.rain.score >= 8) {
+
+        recommendations.push(
+            "Avoid exposed routes during periods of heavy rainfall"
+        );
+
+    }
+
+    if (factors.wind.score >= 6) {
+
+        recommendations.push(
+            "Avoid exposed areas if strong winds or gusts develop"
+        );
+
+    }
+
+    if (factors.snow.score >= 6) {
+
+        recommendations.push(
+            "Check road and route conditions before travelling through snowy areas"
+        );
+
+    }
+
+    if (factors.disaster_alerts.score > 0) {
+
+        recommendations.push(
+            "Continue monitoring official disaster alerts for changes in severity"
+        );
+
+    }
+
+    if (landslideRisk.score >= 15) {
+
+        recommendations.push(
+            "Avoid unstable slopes and areas exposed to landslides"
+        );
+
+    }
+
+
+    // =========================================
+    // REMOVE DUPLICATES
+    // =========================================
+
+    const uniqueConcerns =
+        [...new Set(mainConcerns)];
+
+    const uniquePositives =
+        [...new Set(positiveConditions)];
+
+    const uniqueRecommendations =
+        [...new Set(recommendations)];
+
+
+    // =========================================
+    // FINAL RESULT
+    // =========================================
+
+    return {
+
+        severity_reason:
+            severityReason,
+
+        top_risk_factors:
+            riskFactors.slice(0, 3),
+
+        main_concerns:
+            uniqueConcerns.slice(0, 5),
+
+        positive_conditions:
+            uniquePositives.slice(0, 5),
+
+        recommendations:
+            uniqueRecommendations.slice(0, 6)
+
+    };
+
+}
+
+
+
+
 
 // =========================================
 // RAIN RISK
@@ -580,13 +1092,56 @@ function calculateSatarkRisk(
         overallLevel = "LOW";
 
     }
+    // -----------------------------------------
+// DETERMINISTIC RISK SUMMARY
+// -----------------------------------------
 
+const riskSummary =
+    generateRiskSummary(
+        finalScore,
+        overallLevel,
+        {
+            rain: {
+                score: rainRisk
+            },
 
+            wind: {
+                score: windRisk
+            },
+
+            visibility: {
+                score: visibilityRisk
+            },
+
+            snow: {
+                score: snowRisk
+            },
+
+            temperature: {
+                score: temperatureRisk
+            },
+
+            altitude: {
+                score: altitudeRisk
+            },
+
+            disaster_alerts: {
+                score: disasterRisk.score
+            }
+        },
+
+        disasterAlerts,
+
+        landslideRisk,
+
+        {
+            elevation_m: elevation
+        }
+    );
     return {
-
         score: finalScore,
-
         level: overallLevel,
+        risk_summary: riskSummary,
 
 
         // =====================================
