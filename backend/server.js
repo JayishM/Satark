@@ -36,29 +36,61 @@ function generateRiskSummary(
     // =========================================
 
     function addRiskFactor(
-        name,
-        score,
-        maxScore,
-        reason
-    ) {
+    name,
+    score,
+    maxScore,
+    reason,
+    value = null,
+    unit = ""
+) {
 
-        if (score > 0) {
+    if (score > 0) {
 
-            riskFactors.push({
+        const importance =
+            (score / maxScore) * 100;
 
-                factor: name,
+        let severity = "NORMAL";
 
-                score: score,
-
-                max_score: maxScore,
-
-                reason: reason
-
-            });
-
+        if (importance >= 80) {
+            severity = "CRITICAL";
+        }
+        else if (importance >= 60) {
+            severity = "HIGH";
+        }
+        else if (importance >= 35) {
+            severity = "ELEVATED";
         }
 
+        riskFactors.push({
+
+            id: name
+                .toLowerCase()
+                .replace(/\s+/g, "_"),
+
+            factor: name,
+
+            label: name.toUpperCase(),
+
+            value: value,
+
+            unit: unit,
+
+            score: score,
+
+            max_score: maxScore,
+
+            importance:
+                Math.round(importance),
+
+            severity: severity,
+
+            reason: reason
+
+        });
+
     }
+
+}
 
 
     // =========================================
@@ -75,7 +107,9 @@ function generateRiskSummary(
             "Altitude",
             factors.altitude.score,
             20,
-            `Destination is located at ${rawIndicators.elevation_m} m elevation.`
+            `Destination is located at ${rawIndicators.elevation_m} m elevation.`,
+            rawIndicators.elevation_m,
+            "m"
         );
 
     }
@@ -95,7 +129,9 @@ function generateRiskSummary(
             "Rainfall",
             factors.rain.score,
             25,
-            "Forecast rainfall and precipitation probability are contributing to the risk."
+            "Forecast rainfall and precipitation probability are contributing to the risk.",
+            rawIndicators.today_precipitation_mm,
+            "mm"
         );
 
     }
@@ -115,7 +151,9 @@ function generateRiskSummary(
             "Wind",
             factors.wind.score,
             15,
-            "Forecast wind speeds or gusts are contributing to travel risk."
+            "Forecast wind speeds or gusts are contributing to travel risk.",
+            rawIndicators.current_wind_kmh,
+            "km/h"
         );
 
     }
@@ -135,7 +173,14 @@ function generateRiskSummary(
             "Visibility",
             factors.visibility.score,
             15,
-            "Multiple forecast hours show significantly reduced visibility."
+            "Multiple forecast hours show significantly reduced visibility.",
+            rawIndicators.current_visibility_m != null
+                ? Number(
+                    (rawIndicators.current_visibility_m / 1000)
+                        .toFixed(1)
+                )
+                : null,
+            "km"
         );
 
     }
@@ -145,12 +190,19 @@ function generateRiskSummary(
             "Reduced visibility is possible during the forecast period"
         );
 
-        addRiskFactor(
-            "Visibility",
-            factors.visibility.score,
-            15,
-            "Some forecast periods may have reduced visibility."
-        );
+       addRiskFactor(
+    "Visibility",
+    factors.visibility.score,
+    15,
+    "Multiple forecast hours show significantly reduced visibility.",
+    rawIndicators.current_visibility_m != null
+        ? Number(
+            (rawIndicators.current_visibility_m / 1000)
+                .toFixed(1)
+          )
+        : null,
+    "km"
+);
 
     }
 
@@ -169,7 +221,9 @@ function generateRiskSummary(
             "Snowfall",
             factors.snow.score,
             15,
-            "Forecast snowfall may affect routes and travel conditions."
+            "Forecast snowfall may affect routes and travel conditions.",
+            rawIndicators.today_snowfall_cm,
+            "cm"
         );
 
     }
@@ -186,11 +240,13 @@ function generateRiskSummary(
         );
 
         addRiskFactor(
-            "Temperature",
-            factors.temperature.score,
-            10,
-            "Forecast temperatures are contributing to the calculated risk."
-        );
+    "Temperature",
+    factors.temperature.score,
+    10,
+    "Forecast temperatures are contributing to the calculated risk.",
+    rawIndicators.current_temperature_c,
+    "°C"
+);
 
     }
 
@@ -228,7 +284,9 @@ function generateRiskSummary(
             "Official alerts",
             factors.disaster_alerts.score,
             30,
-            alertReason
+            alertReason,
+            disasterAlerts.length,
+            "active"
         );
 
     }
@@ -248,7 +306,9 @@ function generateRiskSummary(
             "Landslide trigger",
             Math.min(landslideRisk.score, 20),
             20,
-            "Weather and terrain conditions are contributing to the landslide trigger indicator."
+            "Weather and terrain conditions are contributing to the landslide trigger indicator.",
+            landslideRisk.score,
+            "/50"
         );
 
     }
@@ -502,22 +562,25 @@ function generateRiskSummary(
 
     return {
 
-        severity_reason:
-            severityReason,
+    severity_reason:
+        severityReason,
 
-        top_risk_factors:
-            riskFactors.slice(0, 3),
+    top_risk_factors:
+        riskFactors.slice(0, 3),
 
-        main_concerns:
-            uniqueConcerns.slice(0, 5),
+    key_factors:
+        riskFactors.slice(0, 4),
 
-        positive_conditions:
-            uniquePositives.slice(0, 5),
+    main_concerns:
+        uniqueConcerns.slice(0, 5),
 
-        recommendations:
-            uniqueRecommendations.slice(0, 6)
+    positive_conditions:
+        uniquePositives.slice(0, 5),
 
-    };
+    recommendations:
+        uniqueRecommendations.slice(0, 6)
+
+};
 
 }
 
@@ -1616,7 +1679,17 @@ const riskSummary =
                 current.visibility ?? null,
 
             elevation_m:
-                elevation
+                elevation,
+
+            // NEW
+            today_precipitation_mm:
+                daily.precipitation_sum?.[0] ?? 0,
+
+            today_snowfall_cm:
+                daily.snowfall_sum?.[0] ?? 0,
+
+            precipitation_probability_percent:
+                daily.precipitation_probability_max?.[0] ?? 0
 
         }
 
@@ -2522,6 +2595,628 @@ app.get("/api/analyze",async(req,res)=>{
             error: "Failed to analyze location"
         });
     }
+});
+// ============================================================
+// 10-YEAR HISTORICAL WEATHER RISK
+// ============================================================
+app.get('/api/history-risk', async (req, res) => {
+
+  try {
+
+    const locationName = req.query.location;
+
+    if (!locationName) {
+
+      return res.status(400).json({
+        error: 'Location is required'
+      });
+
+    }
+
+    console.log(
+      `📊 Calculating 20-year historical hazard index for ${locationName}`
+    );
+
+    // --------------------------------------------------------
+    // 1. GEOCODE LOCATION
+    // --------------------------------------------------------
+
+    const geocodeUrl =
+      `https://geocoding-api.open-meteo.com/v1/search` +
+      `?name=${encodeURIComponent(locationName)}` +
+      `&count=1` +
+      `&language=en` +
+      `&format=json`;
+
+    const geocodeResponse = await fetch(geocodeUrl);
+
+    if (!geocodeResponse.ok) {
+
+      throw new Error(
+        `Geocoding failed with status ${geocodeResponse.status}`
+      );
+
+    }
+
+    const geocodeData = await geocodeResponse.json();
+
+    if (
+      !geocodeData.results ||
+      geocodeData.results.length === 0
+    ) {
+
+      return res.status(404).json({
+        error: `Location "${locationName}" not found`
+      });
+
+    }
+
+    const place = geocodeData.results[0];
+
+    const latitude = place.latitude;
+    const longitude = place.longitude;
+    const elevation = place.elevation || 0;
+
+    // --------------------------------------------------------
+    // 2. GET LAST 20 COMPLETE YEARS
+    // --------------------------------------------------------
+
+    const currentYear = new Date().getFullYear();
+
+    // Complete years only.
+    // In 2026 this gives:
+    // 2006 -> 2025
+
+    const endYear = currentYear - 1;
+    const startYear = endYear - 19;
+
+    const startDate = `${startYear}-01-01`;
+    const endDate = `${endYear}-12-31`;
+
+    // --------------------------------------------------------
+    // 3. FETCH HISTORICAL WEATHER
+    // --------------------------------------------------------
+
+    const historyUrl =
+      `https://archive-api.open-meteo.com/v1/archive` +
+      `?latitude=${latitude}` +
+      `&longitude=${longitude}` +
+      `&start_date=${startDate}` +
+      `&end_date=${endDate}` +
+      `&daily=` +
+      [
+        'precipitation_sum',
+        'snowfall_sum',
+        'temperature_2m_mean',
+        'temperature_2m_min',
+        'temperature_2m_max',
+        'wind_speed_10m_max',
+        'wind_gusts_10m_max'
+      ].join(',') +
+      `&timezone=auto`;
+
+    const historyResponse = await fetch(historyUrl);
+
+    if (!historyResponse.ok) {
+
+      throw new Error(
+        `Historical weather API failed with status ${historyResponse.status}`
+      );
+
+    }
+
+    const historyData = await historyResponse.json();
+
+    if (!historyData.daily) {
+
+      throw new Error(
+        'Historical weather data unavailable'
+      );
+
+    }
+
+    const daily = historyData.daily;
+
+    // --------------------------------------------------------
+    // 4. DAILY HISTORICAL RISK CALCULATOR
+    // --------------------------------------------------------
+
+    function calculateHistoricalDailyRisk({
+      precipitation,
+      snowfall,
+      temperature,
+      wind,
+      gust
+    }) {
+
+      let score = 0;
+
+      // -------------------------
+      // PRECIPITATION
+      // Max: 25
+      // -------------------------
+
+      if (precipitation >= 100) {
+        score += 25;
+      }
+      else if (precipitation >= 75) {
+        score += 22;
+      }
+      else if (precipitation >= 50) {
+        score += 18;
+      }
+      else if (precipitation >= 30) {
+        score += 14;
+      }
+      else if (precipitation >= 20) {
+        score += 10;
+      }
+      else if (precipitation >= 10) {
+        score += 6;
+      }
+      else if (precipitation >= 5) {
+        score += 3;
+      }
+
+      // -------------------------
+      // WIND
+      // Max: 15
+      // -------------------------
+
+      if (wind >= 80) {
+        score += 15;
+      }
+      else if (wind >= 60) {
+        score += 12;
+      }
+      else if (wind >= 45) {
+        score += 9;
+      }
+      else if (wind >= 30) {
+        score += 6;
+      }
+      else if (wind >= 20) {
+        score += 3;
+      }
+
+      // -------------------------
+      // WIND GUSTS
+      // Max: 10
+      // -------------------------
+
+      if (gust >= 100) {
+        score += 10;
+      }
+      else if (gust >= 80) {
+        score += 8;
+      }
+      else if (gust >= 60) {
+        score += 6;
+      }
+      else if (gust >= 45) {
+        score += 4;
+      }
+      else if (gust >= 30) {
+        score += 2;
+      }
+
+      // -------------------------
+      // SNOW
+      // Max: 15
+      // -------------------------
+
+      if (snowfall >= 30) {
+        score += 15;
+      }
+      else if (snowfall >= 20) {
+        score += 12;
+      }
+      else if (snowfall >= 10) {
+        score += 9;
+      }
+      else if (snowfall >= 5) {
+        score += 6;
+      }
+      else if (snowfall > 0) {
+        score += 3;
+      }
+
+      // -------------------------
+      // TEMPERATURE EXTREMES
+      // Max: 10
+      // -------------------------
+
+      if (
+        temperature >= 45 ||
+        temperature <= -15
+      ) {
+        score += 10;
+      }
+      else if (
+        temperature >= 40 ||
+        temperature <= -10
+      ) {
+        score += 8;
+      }
+      else if (
+        temperature >= 35 ||
+        temperature <= -5
+      ) {
+        score += 5;
+      }
+      else if (
+        temperature >= 32 ||
+        temperature <= 0
+      ) {
+        score += 2;
+      }
+
+      // ------------------------------------------------------
+      // NORMALIZE DAILY WEATHER SCORE TO 0-100
+      //
+      // Maximum raw score:
+      //
+      // precipitation = 25
+      // wind          = 15
+      // gusts         = 10
+      // snow          = 15
+      // temperature   = 10
+      //
+      // Total = 75
+      // ------------------------------------------------------
+
+      return Math.min(
+        100,
+        Math.round((score / 75) * 100)
+      );
+
+    }
+
+    // --------------------------------------------------------
+    // 5. BUILD DAILY RECORDS
+    // --------------------------------------------------------
+
+    const dailyRecords = [];
+
+    for (
+      let i = 0;
+      i < daily.time.length;
+      i++
+    ) {
+
+      const precipitation =
+        daily.precipitation_sum?.[i] ?? 0;
+
+      const snowfall =
+        daily.snowfall_sum?.[i] ?? 0;
+
+      const temperature =
+        daily.temperature_2m_mean?.[i] ?? 20;
+
+      const wind =
+        daily.wind_speed_10m_max?.[i] ?? 0;
+
+      const gust =
+        daily.wind_gusts_10m_max?.[i] ?? wind;
+
+      const risk =
+        calculateHistoricalDailyRisk({
+          precipitation,
+          snowfall,
+          temperature,
+          wind,
+          gust
+        });
+
+      dailyRecords.push({
+
+        date: daily.time[i],
+
+        year:
+          Number(
+            daily.time[i].slice(0, 4)
+          ),
+
+        precipitation,
+
+        snowfall,
+
+        temperature,
+
+        wind,
+
+        gust,
+
+        risk
+
+      });
+
+    }
+
+    // --------------------------------------------------------
+    // 6. GROUP DATA BY YEAR
+    // --------------------------------------------------------
+
+    const yearly = [];
+
+    for (
+      let year = startYear;
+      year <= endYear;
+      year++
+    ) {
+
+      const records =
+        dailyRecords.filter(
+          item => item.year === year
+        );
+
+      if (records.length === 0) {
+        continue;
+      }
+
+      // ------------------------------------------------------
+      // BASIC YEARLY STATISTICS
+      // ------------------------------------------------------
+
+      const averageRisk =
+        records.reduce(
+          (sum, item) =>
+            sum + item.risk,
+          0
+        ) / records.length;
+
+      const peakRisk =
+        Math.max(
+          ...records.map(
+            item => item.risk
+          )
+        );
+
+      const severeDays =
+        records.filter(
+          item => item.risk >= 60
+        ).length;
+
+      const highRiskDays =
+        records.filter(
+          item => item.risk >= 40
+        ).length;
+
+      const totalPrecipitation =
+        records.reduce(
+          (sum, item) =>
+            sum + item.precipitation,
+          0
+        );
+
+      const totalSnowfall =
+        records.reduce(
+          (sum, item) =>
+            sum + item.snowfall,
+          0
+        );
+
+      // ------------------------------------------------------
+      // HISTORICAL HAZARD INDEX
+      //
+      // Instead of simply using:
+      //
+      //     averageRisk
+      //
+      // we consider extreme conditions as well.
+      //
+      // 30% = yearly average conditions
+      // 30% = worst day
+      // 20% = number of severe days
+      // 10% = number of high-risk days
+      //
+      // Remaining 10% is intentionally reserved for
+      // verified historical disaster events.
+      // ------------------------------------------------------
+
+      const averageComponent =
+        averageRisk * 0.30;
+
+      const peakComponent =
+        peakRisk * 0.30;
+
+      const severeDayComponent =
+        Math.min(
+          severeDays / 5,
+          1
+        ) * 20;
+
+      const highRiskComponent =
+        Math.min(
+          highRiskDays / 20,
+          1
+        ) * 10;
+
+      const historicalRisk =
+        Math.round(
+          averageComponent +
+          peakComponent +
+          severeDayComponent +
+          highRiskComponent
+        );
+
+      // ------------------------------------------------------
+      // STORE YEAR
+      // ------------------------------------------------------
+
+      yearly.push({
+
+        year,
+
+        // Main historical hazard index
+        risk:
+          Math.min(
+            historicalRisk,
+            100
+          ),
+
+        // Supporting statistics
+        averageRisk:
+          Math.round(
+            averageRisk
+          ),
+
+        peakRisk,
+
+        severeDays,
+
+        highRiskDays,
+
+        precipitation:
+          Math.round(
+            totalPrecipitation * 10
+          ) / 10,
+
+        snowfall:
+          Math.round(
+            totalSnowfall * 10
+          ) / 10
+
+      });
+
+    }
+
+    // --------------------------------------------------------
+    // 7. FIND HIGHEST-RISK YEAR
+    // --------------------------------------------------------
+
+    const highestRiskYear =
+      yearly.length > 0
+        ? yearly.reduce(
+            (highest, current) =>
+              current.risk >
+              highest.risk
+                ? current
+                : highest,
+            yearly[0]
+          )
+        : null;
+
+    // --------------------------------------------------------
+    // 8. CALCULATE 20-YEAR AVERAGE
+    // --------------------------------------------------------
+
+    const historicalAverage =
+      yearly.length > 0
+        ? Math.round(
+            yearly.reduce(
+              (sum, item) =>
+                sum + item.risk,
+              0
+            ) / yearly.length
+          )
+        : 0;
+
+    // --------------------------------------------------------
+    // 9. HISTORICAL LEVEL
+    // --------------------------------------------------------
+
+    function getHistoricalLevel(score) {
+
+      if (score >= 75) {
+        return 'EXTREME';
+      }
+
+      if (score >= 55) {
+        return 'HIGH';
+      }
+
+      if (score >= 30) {
+        return 'MODERATE';
+      }
+
+      return 'LOW';
+
+    }
+
+    // --------------------------------------------------------
+    // 10. RESPONSE
+    // --------------------------------------------------------
+
+    return res.json({
+
+      location: {
+
+        name:
+          place.name,
+
+        region:
+          place.admin1 ||
+          place.country,
+
+        country:
+          place.country,
+
+        latitude,
+
+        longitude,
+
+        elevation
+
+      },
+
+      period: {
+
+        start:
+          startYear,
+
+        end:
+          endYear,
+
+        years:
+          yearly.length
+
+      },
+
+      summary: {
+
+        averageRisk:
+          historicalAverage,
+
+        level:
+          getHistoricalLevel(
+            historicalAverage
+          ),
+
+        highestRiskYear:
+          highestRiskYear?.year ??
+          null,
+
+        highestRiskScore:
+          highestRiskYear?.risk ??
+          null
+
+      },
+
+      yearly
+
+    });
+
+  }
+  catch (error) {
+
+    console.error(
+      '❌ Historical risk error:',
+      error
+    );
+
+    return res.status(500).json({
+
+      error:
+        'Unable to calculate historical risk',
+
+      message:
+        error.message
+
+    });
+
+  }
+
 });
 app.listen(port, () => {
     console.log(`SATARK backend running on http://localhost:${port}`);

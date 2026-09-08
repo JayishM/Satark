@@ -10,8 +10,10 @@ import WeatherCard from '@/components/weather/WeatherCard'
 import RecommendationCard from '@/components/recommendations/RecommendationCard'
 import GlassCard from '@/components/ui/GlassCard'
 import StatusBadge from '@/components/ui/StatusBadge'
+import HistoricalRiskChart from '@/components/charts/HistoricalRiskChart'
 
 export default function DashboardPage() {
+  const [historicalData, setHistoricalData] = useState([])
   const [locationName, setLocationName] = useState('Kedarnath')
   const [location, setLocation] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -35,6 +37,18 @@ export default function DashboardPage() {
         }
 
         const data = await response.json()
+
+        const historyResponse = await fetch(
+          `http://localhost:3000/api/history-risk?location=${encodeURIComponent(locationName)}`
+        )
+
+        if (!historyResponse.ok) {
+          throw new Error(`Historical API returned ${historyResponse.status}`)
+        }
+
+        const historyData = await historyResponse.json()
+
+        setHistoricalData(historyData.yearly || [])
 
         const current = data.weather?.current || {}
         const risk = data.risk || {}
@@ -255,9 +269,6 @@ export default function DashboardPage() {
           {location.riskLevel} risk
         </StatusBadge>
 
-        <span className="text-[10px] text-white/35">
-          {theme.label} probability is {location.riskScore}/100
-        </span>
 
         <span className="text-[10px] text-white/35">
           Live assessment from current signals
@@ -267,6 +278,10 @@ export default function DashboardPage() {
 
       <ParameterGrid
         parameters={location.parameters}
+        theme={theme}
+      />
+      <HistoricalRiskChart
+        data={historicalData}
         theme={theme}
       />
 
@@ -279,20 +294,6 @@ export default function DashboardPage() {
 
         <WeatherCard
           weather={location.weather}
-          theme={theme}
-        />
-
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-
-        <RiskFactors
-          factors={location.factors}
-          theme={theme}
-        />
-
-        <RecommendationCard
-          items={location.recommendations}
           theme={theme}
         />
 
