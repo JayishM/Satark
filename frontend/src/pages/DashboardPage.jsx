@@ -15,15 +15,21 @@ import OfficialAlerts from '@/components/alerts/OfficialAlerts'
 
 export default function DashboardPage() {
   const [historicalData, setHistoricalData] = useState([])
-  const [locationName, setLocationName] = useState('Kedarnath')
+  const [locationName, setLocationName] = useState('')
   const [location, setLocation] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
   const hazard = location?.hazard || 'landslide'
   const theme = useHazardTheme(hazard)
 
   useEffect(() => {
+    if (!locationName.trim()) {
+      setLocation(null)
+      setHistoricalData([])
+      setLoading(false)
+      return
+    }
     async function fetchAnalysis() {
       try {
         setLoading(true)
@@ -225,10 +231,47 @@ export default function DashboardPage() {
       </div>
     )
   }
+  if (!location) {
+  return (
+    <div className="flex min-h-[70vh] items-center justify-center px-4">
+      <div className="w-full max-w-2xl text-center">
 
+        <div
+          className="text-[10px] font-bold uppercase tracking-[.3em]"
+          style={{ color: theme.accent }}
+        >
+          SATARK
+        </div>
+
+        <h1 className="mt-4 text-4xl font-black tracking-tight md:text-6xl">
+          Understand the risk
+          <br />
+          <span className="text-white/40">
+            before you travel.
+          </span>
+        </h1>
+
+        <p className="mx-auto mt-5 max-w-xl text-sm leading-6 text-white/40">
+          Enter a destination to get a live AI-powered safety
+          assessment using weather, terrain, official alerts,
+          and environmental risk signals.
+        </p>
+
+        <div className="mt-8 text-left">
+          <LocationSearch onSearch={setLocationName} />
+        </div>
+
+        <div className="mt-4 text-[10px] uppercase tracking-widest text-white/20">
+          Search a city, district, or destination
+        </div>
+
+      </div>
+    </div>
+  )
+}
   return (
     <div className="space-y-5">
-
+      
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
 
