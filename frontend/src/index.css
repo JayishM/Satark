@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #e9f3ef;
+  background: #050b0a;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --bg: #050b0a;
+  --panel: rgba(10, 20, 18, 0.74);
+  --panel-strong: rgba(12, 25, 22, 0.92);
+  --border: rgba(151, 211, 192, 0.13);
+  --muted: #8da39b;
+  --text: #e9f3ef;
+  --mint: #8de9c5;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { min-height: 100%; margin: 0; }
+body {
+  min-width: 320px;
+  background: var(--bg);
+  color: var(--text);
+  overflow-x: hidden;
+}
+button, input { font: inherit; }
+button { cursor: pointer; }
+a { color: inherit; text-decoration: none; }
+
+::selection { background: rgba(141, 233, 197, .25); }
+
+.app-bg {
+  min-height: 100vh;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  transition: background 700ms ease;
+}
+.app-bg::before,
+.app-bg::after {
+  content: "";
+  position: fixed;
+  pointer-events: none;
+  z-index: -1;
+}
+.app-bg::before {
+  inset: -20%;
+  background:
+    radial-gradient(circle at 18% 12%, var(--hazard-glow), transparent 30%),
+    radial-gradient(circle at 85% 70%, rgba(71, 113, 100, .08), transparent 28%);
+  filter: blur(30px);
+  opacity: .75;
+}
+.app-bg::after {
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,.65), transparent 85%);
+}
+
+.glass {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: 0 18px 60px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.025);
+  backdrop-filter: blur(18px);
+}
+.panel { border-radius: 22px; }
+.muted { color: var(--muted); }
+.mono { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+.scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+.scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 99px; }
+
+@media (max-width: 900px) {
+  .desktop-only { display: none !important; }
+}
