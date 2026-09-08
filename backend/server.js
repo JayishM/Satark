@@ -926,7 +926,337 @@ function calculateAltitudeRisk(elevation) {
 
     return 0;
 }
+// =========================================
+// 24-HOUR ENVIRONMENTAL RISK FORECAST
+// Maximum: 100 points
+//
+// Uses actual hourly forecast data.
+// Does NOT invent future official alerts.
+// Does NOT treat the current landslide indicator
+// as an hourly forecast.
+//
+// Components:
+// Rain: 25
+// Wind: 15
+// Visibility: 15
+// Snow: 15
+// Temperature: 10
+// Altitude: 20
+// =========================================
 
+function calculateHourlyEnvironmentalRiskForecast(
+    weatherData,
+    elevation
+) {
+
+    const hourly =
+        weatherData.hourly || {};
+
+    const current =
+        weatherData.current || {};
+
+    const times =
+        hourly.time || [];
+
+    if (times.length === 0) {
+        return [];
+    }
+
+    // -----------------------------------------
+    // FIND CURRENT HOUR
+    // -----------------------------------------
+
+    let currentIndex = 0;
+
+    if (current.time) {
+
+        const now =
+            new Date(current.time);
+
+        let smallestDifference =
+            Infinity;
+
+        times.forEach((time, index) => {
+
+            const forecastTime =
+                new Date(time);
+
+            const difference =
+                Math.abs(
+                    forecastTime.getTime() -
+                    now.getTime()
+                );
+
+            if (difference < smallestDifference) {
+
+                smallestDifference =
+                    difference;
+
+                currentIndex =
+                    index;
+            }
+
+        });
+    }
+
+    // -----------------------------------------
+    // TAKE NEXT 24 HOURS
+    // -----------------------------------------
+
+    const forecastTimes =
+        times.slice(
+            currentIndex,
+            currentIndex + 24
+        );
+
+    // -----------------------------------------
+    // ALTITUDE IS CONSTANT
+    // -----------------------------------------
+
+    const altitudeRisk =
+        calculateAltitudeRisk(elevation);
+
+    // -----------------------------------------
+    // CALCULATE EACH HOUR
+    // -----------------------------------------
+
+    return forecastTimes.map((time, offset) => {
+
+        const index =
+            currentIndex + offset;
+
+        const temperature =
+            Number(
+                hourly.temperature_2m?.[index]
+            );
+
+        const precipitation =
+            Number(
+                hourly.precipitation?.[index]
+            );
+
+        const precipitationProbability =
+            Number(
+                hourly.precipitation_probability?.[index]
+            );
+
+        const wind =
+            Number(
+                hourly.wind_speed_10m?.[index]
+            );
+
+        const gust =
+            Number(
+                hourly.wind_gusts_10m?.[index]
+            );
+
+        const visibility =
+            Number(
+                hourly.visibility?.[index]
+            );
+
+        const snowfall =
+            Number(
+                hourly.snowfall?.[index]
+            );
+
+        // -----------------------------------------
+        // RAIN
+        // Maximum: 25
+        // -----------------------------------------
+
+        let rainRisk = 0;
+
+        if (precipitationProbability >= 90) {
+            rainRisk += 15;
+        }
+        else if (precipitationProbability >= 70) {
+            rainRisk += 12;
+        }
+        else if (precipitationProbability >= 50) {
+            rainRisk += 9;
+        }
+        else if (precipitationProbability >= 30) {
+            rainRisk += 5;
+        }
+        else if (precipitationProbability >= 10) {
+            rainRisk += 2;
+        }
+
+        if (precipitation >= 20) {
+            rainRisk += 10;
+        }
+        else if (precipitation >= 10) {
+            rainRisk += 8;
+        }
+        else if (precipitation >= 5) {
+            rainRisk += 5;
+        }
+        else if (precipitation >= 2) {
+            rainRisk += 3;
+        }
+        else if (precipitation > 0) {
+            rainRisk += 1;
+        }
+
+        rainRisk =
+            Math.min(rainRisk, 25);
+
+        // -----------------------------------------
+        // WIND
+        // Maximum: 15
+        // -----------------------------------------
+
+        let windRisk = 0;
+
+        if (gust >= 60) {
+            windRisk = 15;
+        }
+        else if (gust >= 50) {
+            windRisk = 12;
+        }
+        else if (gust >= 40) {
+            windRisk = 9;
+        }
+        else if (gust >= 30) {
+            windRisk = 6;
+        }
+        else if (gust >= 20) {
+            windRisk = 3;
+        }
+
+        if (wind >= 30) {
+            windRisk += 3;
+        }
+        else if (wind >= 20) {
+            windRisk += 2;
+        }
+
+        windRisk =
+            Math.min(windRisk, 15);
+
+        // -----------------------------------------
+        // VISIBILITY
+        // Maximum: 15
+        // -----------------------------------------
+
+        let visibilityRisk = 0;
+
+        if (!Number.isNaN(visibility)) {
+
+            if (visibility < 500) {
+                visibilityRisk = 15;
+            }
+            else if (visibility < 1000) {
+                visibilityRisk = 12;
+            }
+            else if (visibility < 2000) {
+                visibilityRisk = 9;
+            }
+            else if (visibility < 5000) {
+                visibilityRisk = 5;
+            }
+            else if (visibility < 10000) {
+                visibilityRisk = 2;
+            }
+        }
+
+        // -----------------------------------------
+        // SNOW
+        // Maximum: 15
+        // -----------------------------------------
+
+        let snowRisk = 0;
+
+        if (snowfall >= 20) {
+            snowRisk = 12;
+        }
+        else if (snowfall >= 10) {
+            snowRisk = 9;
+        }
+        else if (snowfall >= 5) {
+            snowRisk = 6;
+        }
+        else if (snowfall > 0) {
+            snowRisk = 3;
+        }
+
+        snowRisk =
+            Math.min(snowRisk, 15);
+
+        // -----------------------------------------
+        // TEMPERATURE
+        // Maximum: 10
+        // -----------------------------------------
+
+        let temperatureRisk = 0;
+
+        if (!Number.isNaN(temperature)) {
+
+            if (temperature <= -10) {
+                temperatureRisk += 6;
+            }
+            else if (temperature <= -5) {
+                temperatureRisk += 5;
+            }
+            else if (temperature <= 0) {
+                temperatureRisk += 3;
+            }
+
+            if (temperature >= 45) {
+                temperatureRisk += 6;
+            }
+            else if (temperature >= 40) {
+                temperatureRisk += 5;
+            }
+            else if (temperature >= 35) {
+                temperatureRisk += 3;
+            }
+        }
+
+        temperatureRisk =
+            Math.min(temperatureRisk, 10);
+
+        // -----------------------------------------
+        // TOTAL
+        // -----------------------------------------
+
+        const rawScore =
+            rainRisk +
+            windRisk +
+            visibilityRisk +
+            snowRisk +
+            temperatureRisk +
+            altitudeRisk;
+
+        const score =
+            Math.min(
+                Math.round(rawScore),
+                100
+            );
+
+        let level;
+
+        if (score >= 75) {
+            level = "EXTREME";
+        }
+        else if (score >= 55) {
+            level = "HIGH";
+        }
+        else if (score >= 30) {
+            level = "MODERATE";
+        }
+        else {
+            level = "LOW";
+        }
+
+        return {
+            time,
+            score,
+            level
+        };
+    });
+}
 // =========================================
 // MAIN SATARK RISK CALCULATOR
 // =========================================
@@ -1140,11 +1470,16 @@ const riskSummary =
             elevation_m: elevation
         }
     );
+    const riskForecast =
+    calculateHourlyEnvironmentalRiskForecast(
+        weatherData,
+        elevation
+    );
     return {
         score: finalScore,
         level: overallLevel,
         risk_summary: riskSummary,
-
+        risk_forecast: riskForecast,
 
         // =====================================
         // WEATHER RISK FACTORS

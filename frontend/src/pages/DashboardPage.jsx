@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-import {LocateFixed, Radio, Sparkles } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { LocateFixed, Radio, Sparkles } from 'lucide-react'
 import { useHazardTheme } from '@/hooks/useHazardTheme'
 import LocationSearch from '@/components/location/LocationSearch'
 import RiskHero from '@/components/risk/RiskHero'
@@ -18,7 +17,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  const theme = useHazardTheme('landslide')
+  const hazard = location?.hazard || 'landslide'
+  const theme = useHazardTheme(hazard)
 
   useEffect(() => {
     async function fetchAnalysis() {
@@ -53,13 +53,13 @@ export default function DashboardPage() {
             data.location?.longitude
           ],
 
-          hazard: 'landslide',
+          hazard: getHazardType(data),
 
           riskScore: risk.score ?? 0,
 
           riskLevel: risk.level || 'LOW',
 
-          confidence: 0,
+          confidence: null,
 
           updated: current.time || 'Live',
 
@@ -83,32 +83,45 @@ export default function DashboardPage() {
               value: current.precipitation ?? '--',
               unit: 'mm',
               change: 'current',
-              status: current.precipitation > 10 ? 'elevated' : 'normal'
+              status:
+                current.precipitation > 10
+                  ? 'elevated'
+                  : 'normal'
             },
             {
               label: 'Elevation',
               value: data.location?.elevation ?? '--',
               unit: 'm',
               change: 'destination',
-              status: data.location?.elevation >= 3000 ? 'elevated' : 'normal'
+              status:
+                data.location?.elevation >= 3000
+                  ? 'elevated'
+                  : 'normal'
             },
             {
               label: 'Wind',
               value: current.wind_speed_10m ?? '--',
               unit: 'km/h',
               change: 'current',
-              status: current.wind_speed_10m >= 30 ? 'elevated' : 'normal'
+              status:
+                current.wind_speed_10m >= 30
+                  ? 'elevated'
+                  : 'normal'
             }
           ],
 
-          trend: [risk.score],
-
-          forecast: [
-            {
-              time: 'Now',
-              risk: risk.score ?? 0
-            }
+          trend: [
+            risk.score ?? 0
           ],
+
+          forecast:
+            (risk.risk_forecast || []).map(item => ({
+              time: new Date(item.time).toLocaleTimeString('en-IN', {
+                hour: '2-digit',
+                minute: '2-digit'
+              }),
+              risk: item.score
+            })),
 
           factors: [
             {
@@ -129,11 +142,15 @@ export default function DashboardPage() {
             },
             {
               label: 'Official alerts',
-              impact: getImpact(risk.factors?.disaster_alerts)
+              impact: getImpact(
+                risk.factors?.disaster_alerts
+              )
             },
             {
               label: 'Landslide trigger',
-              impact: getImpact(risk.factors?.landslide_trigger)
+              impact: getImpact(
+                risk.factors?.landslide_trigger
+              )
             }
           ],
 
@@ -145,22 +162,30 @@ export default function DashboardPage() {
             summary.severity_reason ||
             'SATARK has generated a risk assessment from the available environmental signals.',
 
+          severityReason:
+            summary.severity_reason ||
+            ai.explanation ||
+            'Risk assessment is based on the environmental signals currently available to SATARK.',
+
           alerts:
             risk.official_alerts || []
         }
 
         setLocation(adaptedLocation)
-              } catch (err) {
-                console.error('SATARK backend error:', err)
-                setError(err.message)
-              } finally {
-                setLoading(false)
-              }
-            }
+
+      } catch (err) {
+        console.error('SATARK backend error:', err)
+        setError(err.message)
+
+      } finally {
+        setLoading(false)
+      }
+    }
 
     fetchAnalysis()
   }, [locationName])
-    if (loading) {
+
+  if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="text-sm text-white/50">
@@ -177,6 +202,7 @@ export default function DashboardPage() {
           <div className="text-sm font-semibold text-red-200">
             Unable to load SATARK analysis
           </div>
+
           <div className="mt-2 text-xs text-white/40">
             {error}
           </div>
@@ -184,7 +210,126 @@ export default function DashboardPage() {
       </div>
     )
   }
-  function getImpact(factor) {
+
+  return (
+    <div className="space-y-5">
+
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+
+          <div
+            className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.22em]"
+            style={{ color: theme.accent }}
+          >
+            <Radio size={12} />
+            Live location intelligence
+          </div>
+
+          <h2 className="mt-2 text-2xl font-bold tracking-tight md:text-3xl">
+            Understand the risk before it becomes a disaster.
+          </h2>
+
+          <p className="mt-2 max-w-2xl text-xs leading-5 text-white/35">
+            Choose a location. SATARK combines environmental signals
+            and terrain context into a location-specific risk picture.
+          </p>
+
+        </div>
+
+        <div className="flex items-center gap-2 text-[9px] uppercase tracking-widest text-white/25">
+          <LocateFixed size={13} />
+          Live backend intelligence
+        </div>
+      </div>
+
+      <LocationSearch onSearch={setLocationName} />
+
+      <RiskHero
+        location={location}
+        theme={theme}
+      />
+
+      <div className="flex flex-wrap items-center gap-2">
+
+        <StatusBadge level={location.riskLevel}>
+          {location.riskLevel} risk
+        </StatusBadge>
+
+        <span className="text-[10px] text-white/35">
+          {theme.label} probability is {location.riskScore}/100
+        </span>
+
+        <span className="text-[10px] text-white/35">
+          Live assessment from current signals
+        </span>
+
+      </div>
+
+      <ParameterGrid
+        parameters={location.parameters}
+        theme={theme}
+      />
+
+      <div className="grid gap-4 lg:grid-cols-[1.4fr_.6fr]">
+
+        <RiskForecastChart
+          data={location.forecast}
+          theme={theme}
+        />
+
+        <WeatherCard
+          weather={location.weather}
+          theme={theme}
+        />
+
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+
+        <RiskFactors
+          factors={location.factors}
+          theme={theme}
+        />
+
+        <RecommendationCard
+          items={location.recommendations}
+          theme={theme}
+        />
+
+      </div>
+
+      <GlassCard className="relative overflow-hidden p-5 md:p-6">
+
+        <Sparkles
+          size={18}
+          style={{ color: theme.accent }}
+        />
+
+        <div className="mt-4 text-[10px] font-bold uppercase tracking-[.2em] text-white/35">
+          SATARK AI explanation
+        </div>
+
+        <p className="mt-3 max-w-4xl text-sm leading-7 text-white/60">
+          {location.explanation}
+        </p>
+
+        <div
+          className="absolute right-0 top-0 h-32 w-32 rounded-full blur-3xl"
+          style={{ background: theme.glow }}
+        />
+
+      </GlassCard>
+
+    </div>
+  )
+}
+
+
+/* ============================= */
+/* SATARK DATA HELPERS           */
+/* ============================= */
+
+function getImpact(factor) {
   if (!factor || !factor.max_score) {
     return 0
   }
@@ -193,6 +338,7 @@ export default function DashboardPage() {
     (factor.score / factor.max_score) * 100
   )
 }
+
 
 function getWeatherCondition(code) {
   if (code === undefined || code === null) {
@@ -211,47 +357,45 @@ function getWeatherCondition(code) {
 
   return 'Unknown'
 }
-  return (
-    <div className="space-y-5">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.22em]" style={{ color: theme.accent }}><Radio size={12} /> Live location intelligence</div>
-          <h2 className="mt-2 text-2xl font-bold tracking-tight md:text-3xl">Understand the risk before it becomes a disaster.</h2>
-          <p className="mt-2 max-w-2xl text-xs leading-5 text-white/35">Choose a location. SATARK combines environmental signals and terrain context into a location-specific risk picture.</p>
-        </div>
-        <div className="flex items-center gap-2 text-[9px] uppercase tracking-widest text-white/25"><LocateFixed size={13} />Live backend intelligence</div>
-      </div>
 
-      <LocationSearch onSearch={setLocationName} />
 
-      <RiskHero location={location} theme={theme} />
+function getHazardType(data) {
+  const alerts = data?.risk?.official_alerts || []
 
-      <div className="flex flex-wrap items-center gap-2">
-        <StatusBadge level={location.riskLevel}>{location.riskLevel} risk</StatusBadge>
-        <span className="text-[10px] text-white/35">{theme.label} probability is {location.riskScore}/100</span>
-        <span className="text-[10px] text-white/35">
-          Live assessment from current signals
-        </span>
-      </div>
+  const alertText = alerts
+    .map(alert =>
+      `${alert.title || ''} ${alert.hazard || ''}`
+    )
+    .join(' ')
+    .toLowerCase()
 
-      <ParameterGrid parameters={location.parameters} theme={theme} />
+  if (
+    alertText.includes('flood') ||
+    alertText.includes('flash flood')
+  ) {
+    return 'flood'
+  }
 
-      <div className="grid gap-4 lg:grid-cols-[1.4fr_.6fr]">
-        <RiskForecastChart data={location.forecast} theme={theme} />
-        <WeatherCard weather={location.weather} theme={theme} />
-      </div>
+  if (
+    alertText.includes('cyclone') ||
+    alertText.includes('storm surge')
+  ) {
+    return 'cyclone'
+  }
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <RiskFactors factors={location.factors} theme={theme} />
-        <RecommendationCard items={location.recommendations} theme={theme} />
-      </div>
+  if (
+    alertText.includes('heat') ||
+    alertText.includes('hot wave')
+  ) {
+    return 'heatwave'
+  }
 
-      <GlassCard className="relative overflow-hidden p-5 md:p-6">
-        <Sparkles size={18} style={{ color: theme.accent }} />
-        <div className="mt-4 text-[10px] font-bold uppercase tracking-[.2em] text-white/35">SATARK AI explanation</div>
-        <p className="mt-3 max-w-4xl text-sm leading-7 text-white/60">{location.explanation}</p>
-        <div className="absolute right-0 top-0 h-32 w-32 rounded-full blur-3xl" style={{ background: theme.glow }} />
-      </GlassCard>
-    </div>
-  )
+  if (
+    alertText.includes('landslide') ||
+    alertText.includes('avalanche')
+  ) {
+    return 'landslide'
+  }
+
+  return 'landslide'
 }
