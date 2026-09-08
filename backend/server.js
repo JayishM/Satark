@@ -1,11 +1,13 @@
 const express = require('express');
 const cors = require('cors');
+const {generateRiskExplanation} = require("./geminiService");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 const port=3000;
+
 
 
 
@@ -2135,38 +2137,50 @@ app.get("/api/analyze",async(req,res)=>{
                 place.elevation,
                 disasterAlerts
             );
-        res.json({
-            location: {
-                name: place.name,
-                country: place.country,
-                latitude: latitude,
-                longitude: longitude,
-                elevation: place.elevation,
-                timezone: place.timezone
-            },
-            weather: {
+        const aiAnalysis =
+    await generateRiskExplanation({
+        location: {
+            name: place.name,
+            country: place.country,
+            latitude: latitude,
+            longitude: longitude,
+            elevation_m: place.elevation,
+            timezone: place.timezone
+        },
+        weather: weatherData,
+        risk: risk
+    });
+    res.json({
 
-                // Current conditions
-                current: weatherData.current,
+        location: {
+            name: place.name,
+            country: place.country,
+            latitude: latitude,
+            longitude: longitude,
+            elevation: place.elevation,
+            timezone: place.timezone
+        },
 
-                // Units for current conditions
-                current_units: weatherData.current_units,
+        weather: {
 
-                // Hour-by-hour forecast
-                hourly: weatherData.hourly,
+            current: weatherData.current,
+            current_units: weatherData.current_units,
 
-                // Units for hourly forecast
-                hourly_units: weatherData.hourly_units,
+            hourly: weatherData.hourly,
+            hourly_units: weatherData.hourly_units,
 
-                // Daily forecast
-                daily: weatherData.daily,
+            daily: weatherData.daily,
+            daily_units: weatherData.daily_units
 
-                // Units for daily forecast
-                daily_units: weatherData.daily_units
-                },
-            risk: risk
-        });
+        },
+
+        risk: risk,
+
+        ai_analysis: aiAnalysis
+
+    });
     }
+    
     catch (error) {
         console.error("SATARK analysis error:", error);
         res.status(500).json({
