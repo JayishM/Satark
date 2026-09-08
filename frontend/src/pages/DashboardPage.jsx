@@ -1,8 +1,6 @@
-import { useMemo, useState } from 'react'
-import { ArrowDownRight, ArrowUpRight, LocateFixed, Radio, Sparkles } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import {LocateFixed, Radio, Sparkles } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { DEMO_LOCATIONS, LOCATION_OPTIONS } from '@/data/demoData'
-import { HAZARDS } from '@/themes/hazards'
 import { useHazardTheme } from '@/hooks/useHazardTheme'
 import LocationSearch from '@/components/location/LocationSearch'
 import RiskHero from '@/components/risk/RiskHero'
@@ -15,11 +13,204 @@ import GlassCard from '@/components/ui/GlassCard'
 import StatusBadge from '@/components/ui/StatusBadge'
 
 export default function DashboardPage() {
-  const [selectedId, setSelectedId] = useState('dehradun')
-  const location = useMemo(() => DEMO_LOCATIONS[selectedId], [selectedId])
-  const theme = useHazardTheme(location.hazard)
-  const delta = location.forecast.at(-1).risk - location.riskScore
+  const [locationName, setLocationName] = useState('Kedarnath')
+  const [location, setLocation] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
+  const theme = useHazardTheme('landslide')
+
+  useEffect(() => {
+    async function fetchAnalysis() {
+      try {
+        setLoading(true)
+        setError(null)
+
+        const response = await fetch(
+          `http://localhost:3000/api/analyze?location=${encodeURIComponent(locationName)}`
+        )
+
+        if (!response.ok) {
+          throw new Error(`Backend returned ${response.status}`)
+        }
+
+        const data = await response.json()
+
+        const current = data.weather?.current || {}
+        const risk = data.risk || {}
+        const summary = risk.risk_summary || {}
+        const ai = data.ai_analysis || {}
+
+        const adaptedLocation = {
+          id: locationName.toLowerCase().replace(/\s+/g, '-'),
+
+          name: data.location?.name || locationName,
+
+          region: data.location?.country || 'India',
+
+          coordinates: [
+            data.location?.latitude,
+            data.location?.longitude
+          ],
+
+          hazard: 'landslide',
+
+          riskScore: risk.score ?? 0,
+
+          riskLevel: risk.level || 'LOW',
+
+          confidence: 0,
+
+          updated: current.time || 'Live',
+
+          weather: {
+            temperature: current.temperature_2m ?? '--',
+            condition: getWeatherCondition(current.weather_code),
+            feelsLike: current.apparent_temperature ?? '--',
+            humidity: current.relative_humidity_2m ?? '--'
+          },
+
+          parameters: [
+            {
+              label: 'Temperature',
+              value: current.temperature_2m ?? '--',
+              unit: '°C',
+              change: 'current',
+              status: 'normal'
+            },
+            {
+              label: 'Precipitation',
+              value: current.precipitation ?? '--',
+              unit: 'mm',
+              change: 'current',
+              status: current.precipitation > 10 ? 'elevated' : 'normal'
+            },
+            {
+              label: 'Elevation',
+              value: data.location?.elevation ?? '--',
+              unit: 'm',
+              change: 'destination',
+              status: data.location?.elevation >= 3000 ? 'elevated' : 'normal'
+            },
+            {
+              label: 'Wind',
+              value: current.wind_speed_10m ?? '--',
+              unit: 'km/h',
+              change: 'current',
+              status: current.wind_speed_10m >= 30 ? 'elevated' : 'normal'
+            }
+          ],
+
+          trend: [risk.score],
+
+          forecast: [
+            {
+              time: 'Now',
+              risk: risk.score ?? 0
+            }
+          ],
+
+          factors: [
+            {
+              label: 'Rain',
+              impact: getImpact(risk.factors?.rain)
+            },
+            {
+              label: 'Wind',
+              impact: getImpact(risk.factors?.wind)
+            },
+            {
+              label: 'Visibility',
+              impact: getImpact(risk.factors?.visibility)
+            },
+            {
+              label: 'Altitude',
+              impact: getImpact(risk.factors?.altitude)
+            },
+            {
+              label: 'Official alerts',
+              impact: getImpact(risk.factors?.disaster_alerts)
+            },
+            {
+              label: 'Landslide trigger',
+              impact: getImpact(risk.factors?.landslide_trigger)
+            }
+          ],
+
+          recommendations:
+            summary.recommendations || [],
+
+          explanation:
+            ai.explanation ||
+            summary.severity_reason ||
+            'SATARK has generated a risk assessment from the available environmental signals.',
+
+          alerts:
+            risk.official_alerts || []
+        }
+
+        setLocation(adaptedLocation)
+              } catch (err) {
+                console.error('SATARK backend error:', err)
+                setError(err.message)
+              } finally {
+                setLoading(false)
+              }
+            }
+
+    fetchAnalysis()
+  }, [locationName])
+    if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="text-sm text-white/50">
+          SATARK is analyzing {locationName}...
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="rounded-xl border border-red-400/20 bg-red-400/5 p-6 text-center">
+          <div className="text-sm font-semibold text-red-200">
+            Unable to load SATARK analysis
+          </div>
+          <div className="mt-2 text-xs text-white/40">
+            {error}
+          </div>
+        </div>
+      </div>
+    )
+  }
+  function getImpact(factor) {
+  if (!factor || !factor.max_score) {
+    return 0
+  }
+
+  return Math.round(
+    (factor.score / factor.max_score) * 100
+  )
+}
+
+function getWeatherCondition(code) {
+  if (code === undefined || code === null) {
+    return 'Unknown'
+  }
+
+  if (code === 0) return 'Clear sky'
+  if (code <= 3) return 'Partly cloudy'
+  if (code <= 48) return 'Foggy'
+  if (code <= 57) return 'Drizzle'
+  if (code <= 67) return 'Rain'
+  if (code <= 77) return 'Snow'
+  if (code <= 82) return 'Rain showers'
+  if (code <= 86) return 'Snow showers'
+  if (code >= 95) return 'Thunderstorm'
+
+  return 'Unknown'
+}
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -28,17 +219,19 @@ export default function DashboardPage() {
           <h2 className="mt-2 text-2xl font-bold tracking-tight md:text-3xl">Understand the risk before it becomes a disaster.</h2>
           <p className="mt-2 max-w-2xl text-xs leading-5 text-white/35">Choose a location. SATARK combines environmental signals and terrain context into a location-specific risk picture.</p>
         </div>
-        <div className="flex items-center gap-2 text-[9px] uppercase tracking-widest text-white/25"><LocateFixed size={13} /> Demo / simulated data</div>
+        <div className="flex items-center gap-2 text-[9px] uppercase tracking-widest text-white/25"><LocateFixed size={13} />Live backend intelligence</div>
       </div>
 
-      <LocationSearch locations={LOCATION_OPTIONS} selectedId={selectedId} onSelect={setSelectedId} />
+      <LocationSearch onSearch={setLocationName} />
 
       <RiskHero location={location} theme={theme} />
 
       <div className="flex flex-wrap items-center gap-2">
         <StatusBadge level={location.riskLevel}>{location.riskLevel} risk</StatusBadge>
         <span className="text-[10px] text-white/35">{theme.label} probability is {location.riskScore}/100</span>
-        <span className="flex items-center gap-1 text-[10px]" style={{ color: delta > 0 ? theme.accent : '#86d7ad' }}>{delta > 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />} {Math.abs(delta)} points projected by +24h</span>
+        <span className="text-[10px] text-white/35">
+          Live assessment from current signals
+        </span>
       </div>
 
       <ParameterGrid parameters={location.parameters} theme={theme} />
