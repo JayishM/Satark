@@ -33,7 +33,9 @@ const SATARK_TRAVELLER_KEY = 'satark_traveller_profile'
 */
 
 const SATARK_CACHE_TTL = 10 * 60 * 1000
-
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL?.replace(/\/$/, '') ||
+  'http://localhost:3000'
 
 function saveSatarkData(locationName, data) {
   if (!locationName || !data) return
@@ -307,9 +309,9 @@ export default function DashboardPage() {
 
 
         const response =
-          await fetch(
-            `http://localhost:3000/api/analyze?${params.toString()}`
-          )
+  await fetch(
+    `${API_BASE_URL}/api/analyze?${params.toString()}`
+  )
 
 
         if (!response.ok) {
@@ -338,9 +340,9 @@ export default function DashboardPage() {
         try {
 
           const historyResponse =
-            await fetch(
-              `http://localhost:3000/api/history-risk?location=${encodeURIComponent(locationName)}`
-            )
+  await fetch(
+    `${API_BASE_URL}/api/history-risk?location=${encodeURIComponent(locationName)}`
+  )
 
 
           if (historyResponse.ok) {
