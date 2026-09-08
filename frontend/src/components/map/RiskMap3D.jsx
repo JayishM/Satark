@@ -1344,7 +1344,7 @@ export default function RiskMap3D() {
   const [
     satelliteEnabled,
     setSatelliteEnabled,
-  ] = useState(false)
+  ] = useState(true)
 
   const [
     showHazard,
@@ -1585,45 +1585,30 @@ export default function RiskMap3D() {
             },
 
             layers: [
-              {
-                id:
-                  'satarkOSM',
+  {
+    id: 'satarkOSM',
 
-                type: 'raster',
+    type: 'raster',
 
-                source:
-                  'satarkOSM',
+    source: 'satarkOSM',
 
-                paint: {
-                  'raster-opacity':
-                    1,
+    paint: {
+      'raster-opacity': 0,
+    },
+  },
 
-                  'raster-saturation':
-                    -0.1,
+  {
+    id: 'satarkSatellite',
 
-                  'raster-contrast':
-                    0.05,
+    type: 'raster',
 
-                  'raster-brightness-min':
-                    0.02,
-                },
-              },
+    source: 'satarkSatellite',
 
-              {
-                id:
-                  'satarkSatellite',
-
-                type: 'raster',
-
-                source:
-                  'satarkSatellite',
-
-                paint: {
-                  'raster-opacity':
-                    0,
-                },
-              },
-            ],
+    paint: {
+      'raster-opacity': 1,
+    },
+  },
+],
           },
         })
 
@@ -3030,9 +3015,9 @@ export default function RiskMap3D() {
               />
 
               {terrainReady &&
-              terrainEnabled
-                ? '3D TERRAIN'
-                : 'REAL MAP'}
+terrainEnabled
+  ? 'SATELLITE • 3D TERRAIN'
+  : 'SATELLITE'}
 
             </div>
           </div>
@@ -3612,29 +3597,6 @@ export default function RiskMap3D() {
           </button>
 
 
-          <button
-            type="button"
-            onClick={() =>
-              setSatelliteEnabled(
-                value =>
-                  !value
-              )
-            }
-            className={`flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-[8px] font-black uppercase ${
-              satelliteEnabled
-                ? 'bg-white/10 text-white'
-                : 'text-white/25'
-            }`}
-          >
-
-            <MapPinned
-              size={11}
-            />
-
-            Satellite
-
-          </button>
-
         </div>
 
 
@@ -3795,9 +3757,9 @@ export default function RiskMap3D() {
             <span className="text-[7px] font-black uppercase tracking-[.14em] text-blue-300/70">
 
               {terrainReady &&
-              terrainEnabled
-                ? '3D TERRAIN'
-                : 'REAL MAP'}
+terrainEnabled
+  ? 'SATELLITE • 3D TERRAIN'
+  : 'SATELLITE'}
 
             </span>
 
