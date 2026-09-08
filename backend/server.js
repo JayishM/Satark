@@ -118,51 +118,169 @@ function calculateWindRisk(daily) {
 // VISIBILITY RISK
 // Maximum: 15 points
 // =========================================
-
-function calculateVisibilityRisk(hourly) {
+function calculateVisibilityRisk(hourly, current) {
 
     const visibilityValues =
         hourly.visibility || [];
-
 
     if (visibilityValues.length === 0) {
         return 0;
     }
 
+    const hourlyTimes =
+        hourly.time || [];
 
-    // Next 24 hours
+    // -----------------------------------------
+    // FIND CURRENT HOUR
+    // -----------------------------------------
+
+    let currentIndex = 0;
+
+    if (hourlyTimes.length > 0) {
+
+        const now =
+            new Date(
+                current?.time ||
+                new Date().toISOString()
+            );
+
+        const differences =
+            hourlyTimes.map((time, index) => {
+
+                const forecastTime =
+                    new Date(time);
+
+                return {
+                    index,
+                    difference:
+                        Math.abs(
+                            forecastTime.getTime() -
+                            now.getTime()
+                        )
+                };
+
+            });
+
+        differences.sort(
+            (a, b) =>
+                a.difference -
+                b.difference
+        );
+
+        currentIndex =
+            differences[0]?.index ?? 0;
+    }
+
+    // -----------------------------------------
+    // CURRENT VISIBILITY
+    // -----------------------------------------
+
+    const currentVisibility =
+        Number(current?.visibility);
+
+    // -----------------------------------------
+    // NEXT 24 HOURS
+    // -----------------------------------------
+
     const next24Hours =
-        visibilityValues.slice(0, 24);
+        visibilityValues.slice(
+            currentIndex,
+            currentIndex + 24
+        );
 
-
-    const minimumVisibility =
-        Math.min(...next24Hours);
-
-
-    let score = 0;
-
-
-    if (minimumVisibility < 500) {
-        score = 15;
-    }
-    else if (minimumVisibility < 1000) {
-        score = 12;
-    }
-    else if (minimumVisibility < 2000) {
-        score = 9;
-    }
-    else if (minimumVisibility < 5000) {
-        score = 5;
-    }
-    else if (minimumVisibility < 10000) {
-        score = 2;
+    if (next24Hours.length === 0) {
+        return 0;
     }
 
+    // -----------------------------------------
+    // CURRENT VISIBILITY SCORE
+    // -----------------------------------------
+
+    let currentScore = 0;
+
+    if (!Number.isNaN(currentVisibility)) {
+
+        if (currentVisibility < 500) {
+            currentScore = 15;
+        }
+        else if (currentVisibility < 1000) {
+            currentScore = 12;
+        }
+        else if (currentVisibility < 2000) {
+            currentScore = 9;
+        }
+        else if (currentVisibility < 5000) {
+            currentScore = 5;
+        }
+        else if (currentVisibility < 10000) {
+            currentScore = 2;
+        }
+
+    }
+
+    // -----------------------------------------
+    // FUTURE VISIBILITY
+    // -----------------------------------------
+
+    const poorVisibilityHours =
+        next24Hours.filter(
+            value => Number(value) < 1000
+        ).length;
+
+    const veryPoorVisibilityHours =
+        next24Hours.filter(
+            value => Number(value) < 500
+        ).length;
+
+    let forecastScore = 0;
+
+    /*
+     * A short future visibility problem
+     * should not immediately create maximum risk.
+     */
+
+    if (veryPoorVisibilityHours >= 8) {
+        forecastScore = 10;
+    }
+    else if (veryPoorVisibilityHours >= 5) {
+        forecastScore = 8;
+    }
+    else if (veryPoorVisibilityHours >= 3) {
+        forecastScore = 6;
+    }
+    else if (veryPoorVisibilityHours >= 1) {
+        forecastScore = 4;
+    }
+    else if (poorVisibilityHours >= 8) {
+        forecastScore = 8;
+    }
+    else if (poorVisibilityHours >= 5) {
+        forecastScore = 6;
+    }
+    else if (poorVisibilityHours >= 3) {
+        forecastScore = 4;
+    }
+    else if (poorVisibilityHours >= 1) {
+        forecastScore = 2;
+    }
+
+    // -----------------------------------------
+    // FINAL VISIBILITY SCORE
+    // -----------------------------------------
+
+    /*
+     * Current conditions have more importance.
+     * Future conditions add a warning component.
+     */
+
+    let score =
+        Math.max(
+            currentScore,
+            forecastScore
+        );
 
     return Math.min(score, 15);
 }
-
-
 // =========================================
 // SNOW RISK
 // Maximum: 15 points
@@ -333,9 +451,10 @@ function calculateSatarkRisk(
 
 
     const visibilityRisk =
-        calculateVisibilityRisk(
-            hourly
-        );
+    calculateVisibilityRisk(
+        hourly,
+        current
+    );
 
 
     const snowRisk =
