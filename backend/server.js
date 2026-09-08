@@ -1,12 +1,75 @@
+
 const express = require('express');
 const cors = require('cors');
 const {generateRiskExplanation} = require("./geminiService");
 
+
+// =========================================
+// RELIABLE EXTERNAL API FETCH
+// =========================================
+
+async function fetchWithRetry(
+    url,
+    options = {},
+    retries = 3
+) {
+
+    let lastError;
+
+    for (
+        let attempt = 1;
+        attempt <= retries;
+        attempt++
+    ) {
+
+        try {
+
+            const response =
+                await fetch(url, {
+                    ...options,
+                    signal: AbortSignal.timeout(15000)
+                });
+
+            return response;
+
+        } catch (error) {
+
+            lastError = error;
+
+            console.log(
+                `⚠️ API request failed ` +
+                `(attempt ${attempt}/${retries}): ` +
+                `${error.message}`
+            );
+
+            if (attempt < retries) {
+
+                const delay =
+                    attempt * 2000;
+
+                await new Promise(
+                    resolve =>
+                        setTimeout(
+                            resolve,
+                            delay
+                        )
+                );
+
+            }
+        }
+    }
+
+    throw lastError;
+}
+
+
 const app = express();
+
 app.use(cors());
+
 app.use(express.json());
 
-const port=3000;
+const port = 3000;
 
 
 
@@ -1713,8 +1776,7 @@ async function fetchSachetAlerts(latitude, longitude) {
         const url =
             "https://sachet.ndma.gov.in/cap_public_website/FetchAllAlertDetails";
 
-        const response = await fetch(url);
-
+        const response = await fetchWithRetry(url);
         if (!response.ok) {
 
             throw new Error(
@@ -2376,7 +2438,7 @@ app.get("/api/location",async(req,res)=>{
             return res.status(400).json({error:"Missing 'name' query parameter"});
         }
         const url=`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=1&language=en&format=json`;
-        const response=await fetch(url);
+        const response=await fetchWithRetry(url);
         if(!response.ok){
             throw new Error(`Error fetching location data: ${response.statusText}`);
         }
@@ -2413,7 +2475,7 @@ app.get("/api/weather",async(req,res)=>{
             `&longitude=${longitude}`+
             `&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,wind_speed_10m,wind_gusts_10m,visibility,surface_pressure`+
             `&timezone=auto`;
-        const response=await fetch(url);
+        const response=await fetchWithRetry(url);
         if(!response.ok){
             throw new Error("Open-Meteo Weather API failed");
         }
@@ -2440,7 +2502,7 @@ app.get("/api/analyze",async(req,res)=>{
             `&count=1` +
             `&language=en` +
             `&format=json`;
-        const geoResponse = await fetch(geoURL);
+        const geoResponse = await fetchWithRetry(geoURL);
         if (!geoResponse.ok) {
             throw new Error("Geocoding API failed");
         }
@@ -2523,7 +2585,7 @@ app.get("/api/analyze",async(req,res)=>{
             `shortwave_radiation_sum,` +
             `uv_index_max` +
             `&timezone=auto`;
-        const weatherResponse = await fetch(weatherURL);
+        const weatherResponse = await fetchWithRetry(weatherURL);
         if (!weatherResponse.ok) {
             throw new Error("Weather API failed");
         }
@@ -2628,7 +2690,7 @@ app.get('/api/history-risk', async (req, res) => {
       `&language=en` +
       `&format=json`;
 
-    const geocodeResponse = await fetch(geocodeUrl);
+    const geocodeResponse = await fetchWithRetry(geocodeUrl);
 
     if (!geocodeResponse.ok) {
 
@@ -2695,7 +2757,7 @@ app.get('/api/history-risk', async (req, res) => {
       ].join(',') +
       `&timezone=auto`;
 
-    const historyResponse = await fetch(historyUrl);
+    const historyResponse = await fetchWithRetry(historyUrl);
 
     if (!historyResponse.ok) {
 

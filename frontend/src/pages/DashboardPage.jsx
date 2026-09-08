@@ -11,6 +11,7 @@ import RecommendationCard from '@/components/recommendations/RecommendationCard'
 import GlassCard from '@/components/ui/GlassCard'
 import StatusBadge from '@/components/ui/StatusBadge'
 import HistoricalRiskChart from '@/components/charts/HistoricalRiskChart'
+import OfficialAlerts from '@/components/alerts/OfficialAlerts'
 
 export default function DashboardPage() {
   const [historicalData, setHistoricalData] = useState([])
@@ -279,6 +280,9 @@ export default function DashboardPage() {
       <ParameterGrid
         parameters={location.parameters}
         theme={theme}
+      />
+      <OfficialAlerts
+        alerts={location.alerts}
       />
       <HistoricalRiskChart
         data={historicalData}
