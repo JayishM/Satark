@@ -79,7 +79,10 @@ export default function DashboardPage() {
           riskScore: risk.score ?? 0,
 
           riskLevel: risk.level || 'LOW',
-
+          hazardIndex: getHazardIndex(
+            risk,
+            getHazardType(data)
+          ),
           confidence: null,
 
           updated: current.time || 'Live',
@@ -408,7 +411,13 @@ function getWeatherCondition(code) {
 
 
 function getHazardType(data) {
-  const alerts = data?.risk?.official_alerts || []
+  const risk = data?.risk || {}
+  const factors = risk.factors || {}
+  const alerts = risk.official_alerts || []
+
+  // =========================================
+  // 1. OFFICIAL ALERTS HAVE HIGHEST PRIORITY
+  // =========================================
 
   const alertText = alerts
     .map(alert =>
@@ -418,17 +427,17 @@ function getHazardType(data) {
     .toLowerCase()
 
   if (
-    alertText.includes('flood') ||
-    alertText.includes('flash flood')
-  ) {
-    return 'flood'
-  }
-
-  if (
     alertText.includes('cyclone') ||
     alertText.includes('storm surge')
   ) {
     return 'cyclone'
+  }
+
+  if (
+    alertText.includes('flood') ||
+    alertText.includes('flash flood')
+  ) {
+    return 'flood'
   }
 
   if (
@@ -445,5 +454,67 @@ function getHazardType(data) {
     return 'landslide'
   }
 
-  return 'landslide'
+  // =========================================
+  // 2. NO OFFICIAL HAZARD ALERT
+  //    → FIND STRONGEST SATARK FACTOR
+  // =========================================
+
+  const candidates = [
+    {
+      name: 'heatwave',
+      score: factors.temperature?.score || 0
+    },
+    {
+      name: 'flood',
+      score: factors.rain?.score || 0
+    },
+    {
+      name: 'landslide',
+      score: factors.landslide_trigger?.score || 0
+    },
+    {
+      name: 'landslide',
+      score: factors.snow?.score || 0
+    }
+  ]
+
+  candidates.sort((a, b) => b.score - a.score)
+
+  return candidates[0]?.name || 'landslide'
+}
+function getHazardIndex(risk, hazardType) {
+  const factors = risk?.factors || {}
+
+  switch (hazardType) {
+
+    case 'flood':
+      return Math.round(
+        ((factors.rain?.score || 0) /
+          (factors.rain?.max_score || 25)) * 100
+      )
+
+    case 'heatwave':
+      return Math.round(
+        ((factors.temperature?.score || 0) /
+          (factors.temperature?.max_score || 10)) * 100
+      )
+
+    case 'landslide':
+      return Math.round(
+        ((factors.landslide_trigger?.score || 0) /
+          (factors.landslide_trigger?.max_score || 20)) * 100
+      )
+
+    case 'cyclone':
+      return Math.round(
+        (
+          ((factors.wind?.score || 0) /
+            (factors.wind?.max_score || 15)) *
+          100
+        )
+      )
+
+    default:
+      return risk?.score ?? 0
+  }
 }

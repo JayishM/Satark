@@ -98,14 +98,12 @@ export default function RiskHero({ location, theme }) {
               </StatusBadge>
 
               <div className="mono mt-2 text-6xl font-black tracking-[-0.06em]">
-                {score}
-                <span className="text-xl text-white/25">
-                  /100
-                </span>
+                {location?.hazardIndex ?? score}
+                <span className="text-xl text-white/25">/100</span>
               </div>
 
               <div className="text-[10px] uppercase tracking-[0.18em] text-white/35">
-                risk index
+                {getHazardIndexLabel(location?.hazard)}
               </div>
 
             </div>
@@ -256,5 +254,23 @@ function getStatusMessage(level) {
 
     default:
       return 'Monitor conditions regularly'
+  }
+}
+function getHazardIndexLabel(hazard) {
+  switch (hazard) {
+    case 'flood':
+      return 'Flood Index'
+
+    case 'landslide':
+      return 'Landslide Index'
+
+    case 'cyclone':
+      return 'Cyclone Index'
+
+    case 'heatwave':
+      return 'Heatwave Index'
+
+    default:
+      return 'Hazard Index'
   }
 }
