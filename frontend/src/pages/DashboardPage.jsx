@@ -19,6 +19,8 @@ export default function DashboardPage() {
   const [location, setLocation] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [travellerAge, setTravellerAge] = useState('')
+  const [medicalConditions, setMedicalConditions] = useState([])
 
   const hazard = location?.hazard || 'landslide'
   const theme = useHazardTheme(hazard)
@@ -35,9 +37,15 @@ export default function DashboardPage() {
         setLoading(true)
         setError(null)
 
-        const response = await fetch(
-          `http://localhost:3000/api/analyze?location=${encodeURIComponent(locationName)}`
-        )
+        const params = new URLSearchParams({
+  location: locationName,
+  ageGroup: travellerAge || '',
+  medicalConditions: medicalConditions.join(',')
+})
+
+const response = await fetch(
+  `http://localhost:3000/api/analyze?${params.toString()}`
+)
 
         if (!response.ok) {
           throw new Error(`Backend returned ${response.status}`)
@@ -45,17 +53,40 @@ export default function DashboardPage() {
 
         const data = await response.json()
 
-        const historyResponse = await fetch(
-          `http://localhost:3000/api/history-risk?location=${encodeURIComponent(locationName)}`
-        )
+        // Historical risk is OPTIONAL.
+// The main SATARK dashboard must still work if this API fails.
 
-        if (!historyResponse.ok) {
-          throw new Error(`Historical API returned ${historyResponse.status}`)
-        }
+try {
+  const historyResponse = await fetch(
+    `http://localhost:3000/api/history-risk?location=${encodeURIComponent(locationName)}`
+  )
 
-        const historyData = await historyResponse.json()
+  if (!historyResponse.ok) {
+    throw new Error(
+      `Historical API returned ${historyResponse.status}`
+    )
+  }
 
-        setHistoricalData(historyData.yearly || [])
+  const historyData = await historyResponse.json()
+
+  setHistoricalData(
+    Array.isArray(historyData.yearly)
+      ? historyData.yearly
+      : []
+  )
+
+} catch (historyError) {
+
+  console.warn(
+    'Historical risk unavailable:',
+    historyError
+  )
+
+  // IMPORTANT:
+  // Do NOT set the main page error.
+  // Do NOT throw.
+  setHistoricalData([])
+}
 
         const current = data.weather?.current || {}
         const risk = data.risk || {}
@@ -207,7 +238,7 @@ export default function DashboardPage() {
     }
 
     fetchAnalysis()
-  }, [locationName])
+  }, [locationName, travellerAge, medicalConditions])
 
   if (loading) {
     return (
@@ -303,7 +334,103 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <LocationSearch onSearch={setLocationName} />
+      <div className="space-y-4">
+
+  {/* Location Search */}
+  <LocationSearch onSearch={setLocationName} />
+
+  {/* Traveller Profile */}
+  <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+
+    <div className="mb-3 text-[10px] font-bold uppercase tracking-[.2em] text-white/35">
+      Traveller Profile
+    </div>
+
+    <div className="flex flex-col gap-4 md:flex-row">
+
+      {/* Age */}
+      <div className="w-full md:w-40">
+        <label className="mb-2 block text-xs text-white/50">
+          Traveller Age
+        </label>
+
+        <input
+          type="number"
+          min="1"
+          max="120"
+          placeholder="Age"
+          value={travellerAge}
+          onChange={(e) => setTravellerAge(e.target.value)}
+          className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white outline-none placeholder:text-white/20"
+        />
+      </div>
+
+      {/* Medical Conditions */}
+      <div className="flex-1">
+        <label className="mb-2 block text-xs text-white/50">
+          Medical Conditions
+        </label>
+
+        <div className="flex flex-wrap gap-2">
+
+          {[
+            'None',
+            'Asthma',
+            'Diabetes',
+            'Heart condition',
+            'Respiratory condition',
+            'Mobility limitations'
+          ].map((condition) => {
+
+            const selected =
+              medicalConditions.includes(condition)
+
+            return (
+              <button
+                key={condition}
+                type="button"
+                onClick={() => {
+
+                  if (condition === 'None') {
+                    setMedicalConditions(['None'])
+                    return
+                  }
+
+                  setMedicalConditions((prev) => {
+
+                    const withoutNone =
+                      prev.filter((item) => item !== 'None')
+
+                    if (withoutNone.includes(condition)) {
+                      return withoutNone.filter(
+                        (item) => item !== condition
+                      )
+                    }
+
+                    return [...withoutNone, condition]
+                  })
+
+                }}
+                className={`rounded-lg border px-3 py-2 text-xs transition ${
+                  selected
+                    ? 'border-white/30 bg-white/15 text-white'
+                    : 'border-white/10 bg-white/5 text-white/40 hover:bg-white/10'
+                }`}
+              >
+                {condition}
+              </button>
+            )
+
+          })}
+
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
 
       <RiskHero
         location={location}
@@ -370,7 +497,51 @@ export default function DashboardPage() {
         />
 
       </GlassCard>
+      {location.ageRecommendation && (
+  <GlassCard className="p-5 md:p-6">
 
+    <div className="text-[10px] font-bold uppercase tracking-[.2em] text-white/35">
+      Traveller-specific assessment
+    </div>
+
+    <div className="mt-4">
+      <div className="text-sm font-semibold text-white">
+        {travellerAge === 'senior'
+          ? 'Senior travellers'
+          : travellerAge === 'child'
+            ? 'Children'
+            : travellerAge === 'young_adult'
+              ? 'Young adults'
+              : 'Adult travellers'}
+      </div>
+
+      <p className="mt-3 text-sm leading-7 text-white/60">
+        {location.ageRecommendation}
+      </p>
+    </div>
+
+  </GlassCard>
+)}
+{location.medicalRecommendation &&
+  !medicalConditions.includes('None') && (
+    <GlassCard className="p-5 md:p-6">
+
+      <div className="text-[10px] font-bold uppercase tracking-[.2em] text-white/35">
+        Medical consideration
+      </div>
+
+      <div className="mt-4">
+        <div className="text-sm font-semibold text-white">
+          {medicalConditions.join(', ')}
+        </div>
+
+        <p className="mt-3 text-sm leading-7 text-white/60">
+          {location.medicalRecommendation}
+        </p>
+      </div>
+
+    </GlassCard>
+  )}
     </div>
   )
 }

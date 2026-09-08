@@ -2490,7 +2490,7 @@ app.get("/api/weather",async(req,res)=>{
 });
 app.get("/api/analyze",async(req,res)=>{
     try{
-        const{location}=req.query;
+        const {location, ageGroup, medicalConditions}=req.query;
         if (!location) {
             return res.status(400).json({
                 error: "Location is required"
@@ -2602,24 +2602,60 @@ app.get("/api/analyze",async(req,res)=>{
         // STEP 5: CALCULATE SATARK RISK
         // =========================================
         const risk =
-            calculateSatarkRisk(
-                weatherData,
-                place.elevation,
-                disasterAlerts
-            );
-        const aiAnalysis =
-    await generateRiskExplanation({
-        location: {
-            name: place.name,
-            country: place.country,
-            latitude: latitude,
-            longitude: longitude,
-            elevation_m: place.elevation,
-            timezone: place.timezone
+    calculateSatarkRisk(
+        weatherData,
+        place.elevation,
+        disasterAlerts
+    );
+
+
+// =========================================
+// STEP 6: TRAVELLER PROFILE
+// =========================================
+
+
+
+const travellerProfile = {
+
+    ageGroup:
+        ageGroup || null,
+
+    medicalConditions:
+        medicalConditions
+            ? medicalConditions
+                .split(',')
+                .map(condition => condition.trim())
+                .filter(Boolean)
+            : []
+
+};
+
+
+// =========================================
+// STEP 7: GEMINI PERSONALIZED ANALYSIS
+// =========================================
+
+const aiAnalysis =
+    await generateRiskExplanation(
+
+        {
+            location: {
+                name: place.name,
+                country: place.country,
+                latitude: latitude,
+                longitude: longitude,
+                elevation_m: place.elevation,
+                timezone: place.timezone
+            },
+
+            weather: weatherData,
+
+            risk: risk
         },
-        weather: weatherData,
-        risk: risk
-    });
+
+        travellerProfile
+
+    );
     res.json({
 
         location: {
